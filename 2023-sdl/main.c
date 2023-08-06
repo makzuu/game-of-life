@@ -37,6 +37,7 @@ int main(void) {
     bool running = true;
 
     SDL_Rect rect = { RECT_X, RECT_Y, RECT_WIDTH, RECT_HEIGHT };
+    bool fill = false;
 
     while (running) {
         if (SDL_SetRenderDrawColor(renderer, 24, 24, 24, SDL_ALPHA_OPAQUE))
@@ -45,8 +46,13 @@ int main(void) {
             fprintf(stderr, "%s\n", SDL_GetError());
         if (SDL_SetRenderDrawColor(renderer, 204, 204, 204, SDL_ALPHA_OPAQUE))
             fprintf(stderr, "%s\n", SDL_GetError());
-        if (SDL_RenderDrawRect(renderer, &rect))
-            fprintf(stderr, "%s\n", SDL_GetError());
+        if (fill) {
+            if (SDL_RenderFillRect(renderer, &rect))
+                fprintf(stderr, "%s\n", SDL_GetError());
+        } else {
+            if (SDL_RenderDrawRect(renderer, &rect))
+                fprintf(stderr, "%s\n", SDL_GetError());
+        }
         SDL_RenderPresent(renderer);
 
         while (SDL_PollEvent(&event)) {
@@ -54,6 +60,11 @@ int main(void) {
                 case SDL_QUIT: 
                     running = false;
                     printf("bai\n");
+                    break;
+                case SDL_MOUSEBUTTONDOWN:
+                    if (event.button.x > RECT_X && event.button.x < RECT_X + RECT_WIDTH &&
+                            event.button.y > RECT_Y && event.button.y < RECT_Y + RECT_HEIGHT)
+                        fill = !fill;
                     break;
             }
         }
