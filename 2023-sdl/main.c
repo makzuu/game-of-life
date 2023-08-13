@@ -9,39 +9,67 @@
 #define RECT_WIDTH (WIN_WIDTH / COLUMNS)
 #define RECT_HEIGHT (WIN_HEIGHT / ROWS)
 
-#define ARRAY_LEN(a) (sizeof(a) / sizeof(*a))
+#define FPS 30
+#define TARGET_FRAME_TIME (1000 / FPS)
+
+SDL_Window *window = NULL;
+SDL_Renderer *renderer = NULL;
+double last_render = 0;
+
+enum state {
+    SETUP,
+    RUNNING,
+    NOT_RUNNING,
+};
+enum state game_state = NOT_RUNNING;
 
 struct cell {
     SDL_Rect rect;
     bool alive;
 } cells[ROWS][COLUMNS];
 
+void init(void);
+void input(void);
+void update(void);
+
 int main(void) {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        fprintf(stderr, "%s\n", SDL_GetError());
-        return 1;
+
+    init();
+
+    while (game_state != NOT_RUNNING) {
+        input();
+        update();
     }
 
-    SDL_Window *window = SDL_CreateWindow("Game of Life",
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+}
+
+void init(void) {
+    printf("iniciando...\n");
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        fprintf(stderr, "%s\n", SDL_GetError());
+        exit(1);
+    }
+
+    window = SDL_CreateWindow("Game of Life",
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             WIN_WIDTH, WIN_HEIGHT, 0);
     if (window == NULL) {
         fprintf(stderr, "%s\n", SDL_GetError());
         SDL_Quit();
-        return 1;
+        exit(1);
     }
 
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1,
-            SDL_RENDERER_ACCELERATED);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (renderer == NULL) {
         fprintf(stderr, "%s\n", SDL_GetError());
         SDL_DestroyWindow(window);
         SDL_Quit();
-        return 1;
+        exit(1);
     }
-
-    SDL_Event event;
-    bool running = true;
 
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLUMNS; j++) {
@@ -50,7 +78,48 @@ int main(void) {
         }
     }
 
-    while (running) {
+    game_state = SETUP;
+}
+
+void input(void) {
+    printf("eventando\n");
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_QUIT:
+                game_state = NOT_RUNNING;
+                printf("bai\n");
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    SDL_Point point = { event.button.x, event.button.y };
+
+                    for (int i = 0; i < ROWS; i++) {
+                        for (int j = 0; j < COLUMNS; j++) {
+                            if (SDL_PointInRect(&point, &cells[i][j].rect)) {
+                                cells[i][j].alive = !cells[i][j].alive;
+                            }
+                        }
+                    }
+                }
+                break;
+        }
+    }
+}
+
+void update(void) {
+        double elapsed = SDL_GetTicks() - last_render;
+
+        if (elapsed < TARGET_FRAME_TIME) {
+            SDL_Delay(TARGET_FRAME_TIME - elapsed);
+        }
+        elapsed = SDL_GetTicks() - last_render;
+        double delta_time = elapsed / 1000.0f;
+
+        printf("delta time: %lf\n", delta_time);
+
+        last_render = SDL_GetTicks();
+
         SDL_SetRenderDrawColor(renderer, 24, 24, 24, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);
 
@@ -66,32 +135,4 @@ int main(void) {
         }
 
         SDL_RenderPresent(renderer);
-
-        while (SDL_PollEvent(&event)) {
-            switch (event.type) {
-                case SDL_QUIT: 
-                    running = false;
-                    printf("bai\n");
-                    break;
-                case SDL_MOUSEBUTTONDOWN:
-                    if (event.button.button == SDL_BUTTON_LEFT) {
-                        SDL_Point point = { event.button.x, event.button.y };
-
-                        for (int i = 0; i < ROWS; i++) {
-                            for (int j = 0; j < COLUMNS; j++) {
-                                if (SDL_PointInRect(&point, &cells[i][j].rect)) {
-                                    cells[i][j].alive = !cells[i][j].alive;
-                                }
-                            }
-                        }
-                    }
-                    break;
-            }
-        }
-    }
-
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    return 0;
 }
