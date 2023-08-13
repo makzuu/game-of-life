@@ -4,10 +4,17 @@
 
 #define WIN_WIDTH 640
 #define WIN_HEIGHT 480
-#define RECT_WIDTH 100
-#define RECT_HEIGHT 100
-#define RECT_X (WIN_WIDTH/2 - RECT_WIDTH/2)
-#define RECT_Y (WIN_HEIGHT/2 - RECT_HEIGHT/2)
+#define ROWS 10
+#define COLUMNS 10
+#define RECT_WIDTH (WIN_WIDTH / COLUMNS)
+#define RECT_HEIGHT (WIN_HEIGHT / ROWS)
+
+#define ARRAY_LEN(a) (sizeof(a) / sizeof(*a))
+
+struct cell {
+    SDL_Rect rect;
+    bool alive;
+} cells[ROWS][COLUMNS];
 
 int main(void) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -36,23 +43,28 @@ int main(void) {
     SDL_Event event;
     bool running = true;
 
-    SDL_Rect rect = { RECT_X, RECT_Y, RECT_WIDTH, RECT_HEIGHT };
-    bool fill = false;
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLUMNS; j++) {
+            cells[i][j].alive = false;
+            cells[i][j].rect = (SDL_Rect) { j * RECT_WIDTH, i * RECT_HEIGHT, RECT_WIDTH, RECT_HEIGHT };
+        }
+    }
 
     while (running) {
-        if (SDL_SetRenderDrawColor(renderer, 24, 24, 24, SDL_ALPHA_OPAQUE))
-            fprintf(stderr, "%s\n", SDL_GetError());
-        if (SDL_RenderClear(renderer))
-            fprintf(stderr, "%s\n", SDL_GetError());
-        if (SDL_SetRenderDrawColor(renderer, 204, 204, 204, SDL_ALPHA_OPAQUE))
-            fprintf(stderr, "%s\n", SDL_GetError());
-        if (fill) {
-            if (SDL_RenderFillRect(renderer, &rect))
-                fprintf(stderr, "%s\n", SDL_GetError());
-        } else {
-            if (SDL_RenderDrawRect(renderer, &rect))
-                fprintf(stderr, "%s\n", SDL_GetError());
+        SDL_SetRenderDrawColor(renderer, 24, 24, 24, SDL_ALPHA_OPAQUE);
+        SDL_RenderClear(renderer);
+
+        SDL_SetRenderDrawColor(renderer, 204, 204, 204, SDL_ALPHA_OPAQUE);
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLUMNS; j++) {
+                if (cells[i][j].alive) {
+                    SDL_RenderFillRect(renderer, &cells[i][j].rect);
+                } else {
+                    SDL_RenderDrawRect(renderer, &cells[i][j].rect);
+                }
+            }
         }
+
         SDL_RenderPresent(renderer);
 
         while (SDL_PollEvent(&event)) {
@@ -62,9 +74,17 @@ int main(void) {
                     printf("bai\n");
                     break;
                 case SDL_MOUSEBUTTONDOWN:
-                    if (event.button.x > RECT_X && event.button.x < RECT_X + RECT_WIDTH &&
-                            event.button.y > RECT_Y && event.button.y < RECT_Y + RECT_HEIGHT)
-                        fill = !fill;
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        SDL_Point point = { event.button.x, event.button.y };
+
+                        for (int i = 0; i < ROWS; i++) {
+                            for (int j = 0; j < COLUMNS; j++) {
+                                if (SDL_PointInRect(&point, &cells[i][j].rect)) {
+                                    cells[i][j].alive = !cells[i][j].alive;
+                                }
+                            }
+                        }
+                    }
                     break;
             }
         }
