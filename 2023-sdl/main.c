@@ -2,19 +2,20 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#define WIN_WIDTH 640
-#define WIN_HEIGHT 480
-#define ROWS 10
-#define COLUMNS 10
+#define WIN_WIDTH 800
+#define WIN_HEIGHT 600
+#define ROWS 20
+#define COLUMNS 20
 #define RECT_WIDTH (WIN_WIDTH / COLUMNS)
 #define RECT_HEIGHT (WIN_HEIGHT / ROWS)
 
-#define FPS 30
+#define FPS 60
 #define TARGET_FRAME_TIME (1000 / FPS)
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 double last_render = 0;
+int ticks = 0;
 
 enum state {
     SETUP,
@@ -23,14 +24,16 @@ enum state {
 };
 enum state game_state = NOT_RUNNING;
 
-struct cell {
+typedef struct cell {
     SDL_Rect rect;
     bool alive;
-} cells[ROWS][COLUMNS];
+} cell;
+cell cells[ROWS][COLUMNS];
 
 void init(void);
 void input(void);
 void update(void);
+void clean(void);
 
 int main(void) {
 
@@ -91,16 +94,35 @@ void input(void) {
                 printf("bai\n");
                 break;
             case SDL_MOUSEBUTTONDOWN:
-                if (event.button.button == SDL_BUTTON_LEFT) {
-                    SDL_Point point = { event.button.x, event.button.y };
+                if (game_state == SETUP) {
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        SDL_Point point = { event.button.x, event.button.y };
 
-                    for (int i = 0; i < ROWS; i++) {
-                        for (int j = 0; j < COLUMNS; j++) {
-                            if (SDL_PointInRect(&point, &cells[i][j].rect)) {
-                                cells[i][j].alive = !cells[i][j].alive;
+                        for (int i = 0; i < ROWS; i++) {
+                            for (int j = 0; j < COLUMNS; j++) {
+                                if (SDL_PointInRect(&point, &cells[i][j].rect)) {
+                                    cells[i][j].alive = !cells[i][j].alive;
+                                }
                             }
                         }
                     }
+                }
+                break;
+            case SDL_KEYDOWN:
+                switch (event.key.keysym.sym) {
+                    case SDLK_SPACE:
+                        if (game_state == SETUP)
+                            game_state = RUNNING;
+                        else
+                            game_state = SETUP;
+                        break;
+                    case SDLK_q:
+                        game_state = NOT_RUNNING;
+                        break;
+                    case SDLK_r:
+                        if (game_state == SETUP)
+                            clean();
+                        break;
                 }
                 break;
         }
@@ -120,6 +142,36 @@ void update(void) {
 
         last_render = SDL_GetTicks();
 
+        if (game_state == RUNNING) {
+            if (ticks == 0) {
+                cell tmp[ROWS][COLUMNS];
+
+                for (int i = 0; i < ROWS; i++) {
+                    for (int j = 0; j < ROWS; j++) {
+                        int acount = 0;
+                        for (int k = i - 1; k <= i + 1; k++) {
+                            for (int l = j - 1; l <= j + 1; l++) {
+                                if (k == i && l == j) continue;
+                                if (cells[(k + ROWS) % ROWS][(l + COLUMNS) % COLUMNS].alive)
+                                    acount++;
+                            }
+                        }
+                        if (cells[i][j].alive == true)
+                            tmp[i][j].alive = acount > 3 || acount < 2 ? false : true;
+                        else
+                            tmp[i][j].alive = acount == 3 ? true : false;
+                    }
+                }
+
+                for (int i = 0; i < ROWS; i++) {
+                    for (int j = 0; j < COLUMNS; j++) {
+                        cells[i][j].alive = tmp[i][j].alive;
+                    }
+                }
+            }
+            ticks = (ticks + 1) % 5;
+        }
+
         SDL_SetRenderDrawColor(renderer, 24, 24, 24, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);
 
@@ -133,6 +185,13 @@ void update(void) {
                 }
             }
         }
-
         SDL_RenderPresent(renderer);
+}
+
+void clean(void) {
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLUMNS; j++) {
+            cells[i][j].alive = false;
+        }
+    }
 }
