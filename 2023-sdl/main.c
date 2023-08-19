@@ -4,10 +4,10 @@
 
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 600
-#define ROWS 20
-#define COLUMNS 20
-#define RECT_WIDTH (WIN_WIDTH / COLUMNS)
-#define RECT_HEIGHT (WIN_HEIGHT / ROWS)
+#define RECT_WIDTH 20
+#define RECT_HEIGHT 20
+#define COLUMNS (WIN_WIDTH / RECT_WIDTH)
+#define ROWS (WIN_HEIGHT / RECT_HEIGHT)
 
 #define FPS 60
 #define TARGET_FRAME_TIME (1000 / FPS)
@@ -147,7 +147,7 @@ void update(void) {
                 cell tmp[ROWS][COLUMNS];
 
                 for (int i = 0; i < ROWS; i++) {
-                    for (int j = 0; j < ROWS; j++) {
+                    for (int j = 0; j < COLUMNS; j++) {
                         int acount = 0;
                         for (int k = i - 1; k <= i + 1; k++) {
                             for (int l = j - 1; l <= j + 1; l++) {
