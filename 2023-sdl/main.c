@@ -17,6 +17,12 @@ SDL_Renderer *renderer = NULL;
 double last_render = 0;
 int ticks = 0;
 
+typedef struct color {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+} color;
+
 enum state {
     SETUP,
     RUNNING,
@@ -130,62 +136,70 @@ void input(void) {
 }
 
 void update(void) {
-        double elapsed = SDL_GetTicks() - last_render;
+    double elapsed = SDL_GetTicks() - last_render;
 
-        if (elapsed < TARGET_FRAME_TIME) {
-            SDL_Delay(TARGET_FRAME_TIME - elapsed);
-        }
-        elapsed = SDL_GetTicks() - last_render;
-        double delta_time = elapsed / 1000.0f;
+    if (elapsed < TARGET_FRAME_TIME) {
+        SDL_Delay(TARGET_FRAME_TIME - elapsed);
+    }
+    elapsed = SDL_GetTicks() - last_render;
+    double delta_time = elapsed / 1000.0f;
 
-        printf("delta time: %lf\n", delta_time);
+    printf("delta time: %lf\n", delta_time);
 
-        last_render = SDL_GetTicks();
+    last_render = SDL_GetTicks();
 
-        if (game_state == RUNNING) {
-            if (ticks == 0) {
-                cell tmp[ROWS][COLUMNS];
+    if (game_state == RUNNING) {
+        if (ticks == 0) {
+            cell tmp[ROWS][COLUMNS];
 
-                for (int i = 0; i < ROWS; i++) {
-                    for (int j = 0; j < COLUMNS; j++) {
-                        int acount = 0;
-                        for (int k = i - 1; k <= i + 1; k++) {
-                            for (int l = j - 1; l <= j + 1; l++) {
-                                if (k == i && l == j) continue;
-                                if (cells[(k + ROWS) % ROWS][(l + COLUMNS) % COLUMNS].alive)
-                                    acount++;
-                            }
+            for (int i = 0; i < ROWS; i++) {
+                for (int j = 0; j < COLUMNS; j++) {
+                    int acount = 0;
+                    for (int k = i - 1; k <= i + 1; k++) {
+                        for (int l = j - 1; l <= j + 1; l++) {
+                            if (k == i && l == j) continue;
+                            if (cells[(k + ROWS) % ROWS][(l + COLUMNS) % COLUMNS].alive)
+                                acount++;
                         }
-                        if (cells[i][j].alive == true)
-                            tmp[i][j].alive = acount > 3 || acount < 2 ? false : true;
-                        else
-                            tmp[i][j].alive = acount == 3 ? true : false;
                     }
-                }
-
-                for (int i = 0; i < ROWS; i++) {
-                    for (int j = 0; j < COLUMNS; j++) {
-                        cells[i][j].alive = tmp[i][j].alive;
-                    }
+                    if (cells[i][j].alive == true)
+                        tmp[i][j].alive = acount > 3 || acount < 2 ? false : true;
+                    else
+                        tmp[i][j].alive = acount == 3 ? true : false;
                 }
             }
-            ticks = (ticks + 1) % 5;
-        }
 
-        SDL_SetRenderDrawColor(renderer, 24, 24, 24, SDL_ALPHA_OPAQUE);
-        SDL_RenderClear(renderer);
-
-        SDL_SetRenderDrawColor(renderer, 204, 204, 204, SDL_ALPHA_OPAQUE);
-        for (int i = 0; i < ROWS; i++) {
-            for (int j = 0; j < COLUMNS; j++) {
-                if (cells[i][j].alive) {
-                    SDL_RenderFillRect(renderer, &cells[i][j].rect);
-                } else {
-                    SDL_RenderDrawRect(renderer, &cells[i][j].rect);
+            for (int i = 0; i < ROWS; i++) {
+                for (int j = 0; j < COLUMNS; j++) {
+                    cells[i][j].alive = tmp[i][j].alive;
                 }
             }
         }
-        SDL_RenderPresent(renderer);
+        ticks = (ticks + 1) % 5;
+    }
+
+    color background  = { .r = 10, .g = 10, .b = 10 };
+    color foreground  = { .r = 204, .g = 204, .b = 204 };
+    color foreground2 = { .r = 65, .g = 105, .b = 225 };
+
+    SDL_SetRenderDrawColor(renderer, background.r, background.g, background.b, SDL_ALPHA_OPAQUE);
+    SDL_RenderClear(renderer);
+
+    if (game_state == SETUP)
+        SDL_SetRenderDrawColor(renderer, foreground.r, foreground.g, foreground.b, SDL_ALPHA_OPAQUE);
+    if (game_state == RUNNING)
+        SDL_SetRenderDrawColor(renderer, foreground2.r, foreground2.g, foreground2.b, SDL_ALPHA_OPAQUE);
+
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLUMNS; j++) {
+            if (cells[i][j].alive) {
+                SDL_RenderFillRect(renderer, &cells[i][j].rect);
+            } else {
+                SDL_RenderDrawRect(renderer, &cells[i][j].rect);
+            }
+        }
+    }
+    SDL_RenderPresent(renderer);
 }
 
 void clean(void) {
