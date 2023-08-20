@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 600
@@ -9,13 +10,8 @@
 #define COLUMNS (WIN_WIDTH / RECT_WIDTH)
 #define ROWS (WIN_HEIGHT / RECT_HEIGHT)
 
-#define FPS 60
+#define FPS 30
 #define TARGET_FRAME_TIME (1000 / FPS)
-
-SDL_Window *window = NULL;
-SDL_Renderer *renderer = NULL;
-double last_render = 0;
-int ticks = 0;
 
 typedef struct color {
     uint8_t r;
@@ -23,75 +19,114 @@ typedef struct color {
     uint8_t b;
 } color;
 
-enum state {
+typedef enum state {
     SETUP,
     RUNNING,
     NOT_RUNNING,
-};
-enum state game_state = NOT_RUNNING;
+} state;
+state game_state = NOT_RUNNING;
 
 typedef struct cell {
     SDL_Rect rect;
     bool alive;
 } cell;
-cell cells[ROWS][COLUMNS];
 
-void init(void);
-void input(void);
-void update(void);
-void clean(void);
+int init(SDL_Window **, SDL_Renderer **);
+int set_cells(cell **);
+void input(cell **);
+void update(cell **, SDL_Renderer *);
+void destroy_everything(SDL_Window *, SDL_Renderer *, cell **cells); // todo
 
 int main(void) {
+    SDL_Window *window = NULL;
+    SDL_Renderer *renderer = NULL;
+    cell **cells = NULL;
 
-    init();
-
-    while (game_state != NOT_RUNNING) {
-        input();
-        update();
+    int init_status = init(&window, &renderer);
+    if (init_status) {
+        fprintf(stderr, "%s\n", SDL_GetError());
+        destroy_everything(window, renderer, cells);
+        exit(1);
     }
 
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+    cells = malloc(sizeof(cell *) * ROWS);
+    if (cells == NULL) {
+        destroy_everything(window, renderer, cells);
+        return 1;
+    }
+    if (set_cells(cells)) {
+        destroy_everything(window, renderer, cells);
+        return 1;
+    }
+    game_state = SETUP;
+
+    while (game_state != NOT_RUNNING) {
+        input(cells);
+        update(cells, renderer);
+    }
+
+    destroy_everything(window, renderer, cells);
     return 0;
 }
 
-void init(void) {
-    printf("iniciando...\n");
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        fprintf(stderr, "%s\n", SDL_GetError());
-        exit(1);
-    }
+int init(SDL_Window **window, SDL_Renderer **renderer) {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+        return 1;
 
-    window = SDL_CreateWindow("Game of Life",
+    *window = SDL_CreateWindow("Game of Life",
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             WIN_WIDTH, WIN_HEIGHT, 0);
-    if (window == NULL) {
-        fprintf(stderr, "%s\n", SDL_GetError());
-        SDL_Quit();
-        exit(1);
-    }
+    if (*window == NULL)
+        return 1;
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (renderer == NULL) {
-        fprintf(stderr, "%s\n", SDL_GetError());
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        exit(1);
-    }
+    *renderer = SDL_CreateRenderer(*window, -1, SDL_RENDERER_ACCELERATED);
+    if (*renderer == NULL)
+        return 1;
 
+    return 0;
+}
+
+int set_cells(cell **cells) {
     for (int i = 0; i < ROWS; i++) {
+        cells[i] = malloc(sizeof(cell) * COLUMNS);
+
+        if (cells[i] == NULL) {
+            return 1;
+        }
+
         for (int j = 0; j < COLUMNS; j++) {
             cells[i][j].alive = false;
-            cells[i][j].rect = (SDL_Rect) { j * RECT_WIDTH, i * RECT_HEIGHT, RECT_WIDTH, RECT_HEIGHT };
+            cells[i][j].rect = (SDL_Rect) {
+                .x = (j * RECT_WIDTH),
+                    .y = (i * RECT_HEIGHT),
+                    .w = RECT_WIDTH,
+                    .h = RECT_HEIGHT
+            };
         }
     }
 
-    game_state = SETUP;
+    return 0;
 }
 
-void input(void) {
-    printf("eventando\n");
+void set_cells_to_original_state(cell **cells) {
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLUMNS; j++) {
+            cells[i][j].alive = false;
+        }
+    }
+}
+
+void toggle_cell_state(cell **cells, SDL_Point *point) {
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLUMNS; j++) {
+            if (SDL_PointInRect(point, &cells[i][j].rect)) {
+                cells[i][j].alive = !cells[i][j].alive;
+            }
+        }
+    }
+}
+
+void input(cell **cells) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -103,14 +138,7 @@ void input(void) {
                 if (game_state == SETUP) {
                     if (event.button.button == SDL_BUTTON_LEFT) {
                         SDL_Point point = { event.button.x, event.button.y };
-
-                        for (int i = 0; i < ROWS; i++) {
-                            for (int j = 0; j < COLUMNS; j++) {
-                                if (SDL_PointInRect(&point, &cells[i][j].rect)) {
-                                    cells[i][j].alive = !cells[i][j].alive;
-                                }
-                            }
-                        }
+                        toggle_cell_state(cells, &point);
                     }
                 }
                 break;
@@ -127,7 +155,7 @@ void input(void) {
                         break;
                     case SDLK_r:
                         if (game_state == SETUP)
-                            clean();
+                            set_cells_to_original_state(cells);
                         break;
                 }
                 break;
@@ -135,60 +163,52 @@ void input(void) {
     }
 }
 
-void update(void) {
-    double elapsed = SDL_GetTicks() - last_render;
+void wait_till_ready(void) {
+    static int last_render = 0;
+    int elapsed = SDL_GetTicks() - last_render;
 
     if (elapsed < TARGET_FRAME_TIME) {
         SDL_Delay(TARGET_FRAME_TIME - elapsed);
     }
-    elapsed = SDL_GetTicks() - last_render;
-    double delta_time = elapsed / 1000.0f;
-
-    printf("delta time: %lf\n", delta_time);
-
     last_render = SDL_GetTicks();
+}
 
-    if (game_state == RUNNING) {
-        if (ticks == 0) {
-            cell tmp[ROWS][COLUMNS];
+void compute_next_generation(cell **cells) {
+    static int ticks = 0;
+    if (ticks == 0) {
+        cell tmp[ROWS][COLUMNS];
 
-            for (int i = 0; i < ROWS; i++) {
-                for (int j = 0; j < COLUMNS; j++) {
-                    int acount = 0;
-                    for (int k = i - 1; k <= i + 1; k++) {
-                        for (int l = j - 1; l <= j + 1; l++) {
-                            if (k == i && l == j) continue;
-                            if (cells[(k + ROWS) % ROWS][(l + COLUMNS) % COLUMNS].alive)
-                                acount++;
-                        }
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLUMNS; j++) {
+                int acount = 0;
+                for (int k = i - 1; k <= i + 1; k++) {
+                    for (int l = j - 1; l <= j + 1; l++) {
+                        if (k == i && l == j) continue;
+                        if (cells[(k + ROWS) % ROWS][(l + COLUMNS) % COLUMNS].alive)
+                            acount++;
                     }
-                    if (cells[i][j].alive == true)
-                        tmp[i][j].alive = acount > 3 || acount < 2 ? false : true;
-                    else
-                        tmp[i][j].alive = acount == 3 ? true : false;
                 }
-            }
-
-            for (int i = 0; i < ROWS; i++) {
-                for (int j = 0; j < COLUMNS; j++) {
-                    cells[i][j].alive = tmp[i][j].alive;
-                }
+                if (cells[i][j].alive == true)
+                    tmp[i][j].alive = acount > 3 || acount < 2 ? false : true;
+                else
+                    tmp[i][j].alive = acount == 3 ? true : false;
             }
         }
-        ticks = (ticks + 1) % 5;
+
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLUMNS; j++) {
+                cells[i][j].alive = tmp[i][j].alive;
+            }
+        }
     }
+    ticks = (ticks + 1) % 5;
+}
 
-    color background  = { .r = 10, .g = 10, .b = 10 };
-    color foreground  = { .r = 204, .g = 204, .b = 204 };
-    color foreground2 = { .r = 65, .g = 105, .b = 225 };
-
-    SDL_SetRenderDrawColor(renderer, background.r, background.g, background.b, SDL_ALPHA_OPAQUE);
-    SDL_RenderClear(renderer);
-
+void draw_cells(cell **cells, SDL_Renderer *renderer, color *colors) {
     if (game_state == SETUP)
-        SDL_SetRenderDrawColor(renderer, foreground.r, foreground.g, foreground.b, SDL_ALPHA_OPAQUE);
+        SDL_SetRenderDrawColor(renderer, colors[1].r, colors[1].g, colors[1].b, SDL_ALPHA_OPAQUE);
     if (game_state == RUNNING)
-        SDL_SetRenderDrawColor(renderer, foreground2.r, foreground2.g, foreground2.b, SDL_ALPHA_OPAQUE);
+        SDL_SetRenderDrawColor(renderer, colors[2].r, colors[2].g, colors[2].b, SDL_ALPHA_OPAQUE);
 
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLUMNS; j++) {
@@ -199,13 +219,41 @@ void update(void) {
             }
         }
     }
+}
+
+void update(cell **cells, SDL_Renderer *renderer) {
+    wait_till_ready();
+
+    if (game_state == RUNNING) {
+        compute_next_generation(cells);
+    }
+
+    color colors[] = {
+        { .r = 10, .g = 10, .b = 10 },    /* background */
+        { .r = 204, .g = 204, .b = 204 }, /* foreground */
+        { .r = 65, .g = 105, .b = 225 },  /* foreground 2 */
+    };
+
+    SDL_SetRenderDrawColor(renderer, colors[0].r, colors[0].g, colors[0].b, SDL_ALPHA_OPAQUE);
+    SDL_RenderClear(renderer);
+
+    draw_cells(cells, renderer, colors);
+
     SDL_RenderPresent(renderer);
 }
 
-void clean(void) {
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLUMNS; j++) {
-            cells[i][j].alive = false;
+void destroy_everything(SDL_Window *window, SDL_Renderer *renderer, cell **cells) {
+    if (window != NULL)
+        SDL_DestroyWindow(window);
+    if (renderer != NULL)
+        SDL_DestroyRenderer(renderer);
+    if (cells != NULL) {
+        for (int i = 0; i < ROWS; i++) {
+            if(cells[i] != NULL) {
+                free(cells[i]);
+            }
         }
+        free(cells);
     }
+    SDL_Quit();
 }
