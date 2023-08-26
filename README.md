@@ -2,7 +2,9 @@
 
 ![](./2023-sdl/life.gif)
 
-## installation
+## build
+
+dependencies: [SDL2](https://www.libsdl.org/)
 
 ```shell
 $ cd 2023-sdl/
@@ -12,18 +14,17 @@ $ ./build.sh
 ## usage
 
 ```shell
-$ ./a.out
+$ ./gol
 ```
 
-## commands
+### key bindings
 
-- `q`: quit
-- `space`: toggle mode [setup | running]
-
-- **setup mode:**
-
-    - `r`: reset game to the original state
-    - `left click (on cell)` toggle cell state
+| key                    | mode  | description                             |
+| :--------------------- | :---- | :-------------------------------------- |
+| `q`                    | both  | quit                                    |
+| `space`                | both  | toggle mode                             |
+| `r`                    | setup | reset the cells to their original state |
+| `left click (on cell)` | setup | toggle the state of the cell            |
 
 ## references
 
