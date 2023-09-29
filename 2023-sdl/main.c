@@ -32,32 +32,24 @@ typedef struct cell {
 } cell;
 
 int init(SDL_Window **, SDL_Renderer **);
-int set_cells(cell **);
-void input(cell **);
-void update(cell **, SDL_Renderer *);
-void destroy_everything(SDL_Window *, SDL_Renderer *, cell **cells); // todo
+void set_cells(cell cells[ROWS][COLUMNS]);
+void input(cell cells[ROWS][COLUMNS]);
+void update(cell cells[ROWS][COLUMNS], SDL_Renderer *);
+void destroy_everything(SDL_Window *, SDL_Renderer *);
 
 int main(void) {
     SDL_Window *window = NULL;
     SDL_Renderer *renderer = NULL;
-    cell **cells = NULL;
+    cell cells[ROWS][COLUMNS];
 
     int init_status = init(&window, &renderer);
     if (init_status) {
         fprintf(stderr, "%s\n", SDL_GetError());
-        destroy_everything(window, renderer, cells);
+        destroy_everything(window, renderer);
         exit(1);
     }
 
-    cells = malloc(sizeof(cell *) * ROWS);
-    if (cells == NULL) {
-        destroy_everything(window, renderer, cells);
-        return 1;
-    }
-    if (set_cells(cells)) {
-        destroy_everything(window, renderer, cells);
-        return 1;
-    }
+    set_cells(cells);
     game_state = SETUP;
 
     while (game_state != NOT_RUNNING) {
@@ -65,7 +57,7 @@ int main(void) {
         update(cells, renderer);
     }
 
-    destroy_everything(window, renderer, cells);
+    destroy_everything(window, renderer);
     return 0;
 }
 
@@ -86,29 +78,21 @@ int init(SDL_Window **window, SDL_Renderer **renderer) {
     return 0;
 }
 
-int set_cells(cell **cells) {
+void set_cells(cell cells[ROWS][COLUMNS]) {
     for (int i = 0; i < ROWS; i++) {
-        cells[i] = malloc(sizeof(cell) * COLUMNS);
-
-        if (cells[i] == NULL) {
-            return 1;
-        }
-
         for (int j = 0; j < COLUMNS; j++) {
             cells[i][j].alive = false;
             cells[i][j].rect = (SDL_Rect) {
                 .x = (j * RECT_WIDTH),
-                    .y = (i * RECT_HEIGHT),
-                    .w = RECT_WIDTH,
-                    .h = RECT_HEIGHT
+                .y = (i * RECT_HEIGHT),
+                .w = RECT_WIDTH,
+                .h = RECT_HEIGHT
             };
         }
     }
-
-    return 0;
 }
 
-void set_cells_to_original_state(cell **cells) {
+void set_cells_to_original_state(cell cells[ROWS][COLUMNS]) {
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLUMNS; j++) {
             cells[i][j].alive = false;
@@ -116,7 +100,7 @@ void set_cells_to_original_state(cell **cells) {
     }
 }
 
-void toggle_cell_state(cell **cells, SDL_Point *point) {
+void toggle_cell_state(cell cells[ROWS][COLUMNS], SDL_Point *point) {
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLUMNS; j++) {
             if (SDL_PointInRect(point, &cells[i][j].rect)) {
@@ -126,7 +110,7 @@ void toggle_cell_state(cell **cells, SDL_Point *point) {
     }
 }
 
-void input(cell **cells) {
+void input(cell cells[ROWS][COLUMNS]) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -173,7 +157,7 @@ void wait_till_ready(void) {
     last_render = SDL_GetTicks();
 }
 
-void compute_next_generation(cell **cells) {
+void compute_next_generation(cell cells[ROWS][COLUMNS]) {
     static int ticks = 0;
     if (ticks == 0) {
         cell tmp[ROWS][COLUMNS];
@@ -204,7 +188,7 @@ void compute_next_generation(cell **cells) {
     ticks = (ticks + 1) % 5;
 }
 
-void draw_cells(cell **cells, SDL_Renderer *renderer, color *colors) {
+void draw_cells(cell cells[ROWS][COLUMNS], SDL_Renderer *renderer, color *colors) {
     if (game_state == SETUP)
         SDL_SetRenderDrawColor(renderer, colors[1].r, colors[1].g, colors[1].b, SDL_ALPHA_OPAQUE);
     if (game_state == RUNNING)
@@ -221,7 +205,7 @@ void draw_cells(cell **cells, SDL_Renderer *renderer, color *colors) {
     }
 }
 
-void update(cell **cells, SDL_Renderer *renderer) {
+void update(cell cells[ROWS][COLUMNS], SDL_Renderer *renderer) {
     wait_till_ready();
 
     if (game_state == RUNNING) {
@@ -242,18 +226,10 @@ void update(cell **cells, SDL_Renderer *renderer) {
     SDL_RenderPresent(renderer);
 }
 
-void destroy_everything(SDL_Window *window, SDL_Renderer *renderer, cell **cells) {
+void destroy_everything(SDL_Window *window, SDL_Renderer *renderer) {
     if (window != NULL)
         SDL_DestroyWindow(window);
     if (renderer != NULL)
         SDL_DestroyRenderer(renderer);
-    if (cells != NULL) {
-        for (int i = 0; i < ROWS; i++) {
-            if(cells[i] != NULL) {
-                free(cells[i]);
-            }
-        }
-        free(cells);
-    }
     SDL_Quit();
 }
