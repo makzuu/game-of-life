@@ -31,16 +31,17 @@ typedef struct cell {
     bool alive;
 } cell;
 
+cell cells[ROWS][COLUMNS];
+
 int init(SDL_Window **, SDL_Renderer **);
-void set_cells(cell cells[ROWS][COLUMNS]);
-void input(cell cells[ROWS][COLUMNS]);
-void update(cell cells[ROWS][COLUMNS], SDL_Renderer *);
+void set_cells();
+void input();
+void update(SDL_Renderer *);
 void destroy_everything(SDL_Window *, SDL_Renderer *);
 
 int main(void) {
     SDL_Window *window = NULL;
     SDL_Renderer *renderer = NULL;
-    cell cells[ROWS][COLUMNS];
 
     int init_status = init(&window, &renderer);
     if (init_status) {
@@ -49,12 +50,12 @@ int main(void) {
         exit(1);
     }
 
-    set_cells(cells);
+    set_cells();
     game_state = SETUP;
 
     while (game_state != NOT_RUNNING) {
-        input(cells);
-        update(cells, renderer);
+        input();
+        update(renderer);
     }
 
     destroy_everything(window, renderer);
@@ -78,7 +79,7 @@ int init(SDL_Window **window, SDL_Renderer **renderer) {
     return 0;
 }
 
-void set_cells(cell cells[ROWS][COLUMNS]) {
+void set_cells() {
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLUMNS; j++) {
             cells[i][j].alive = false;
@@ -92,7 +93,7 @@ void set_cells(cell cells[ROWS][COLUMNS]) {
     }
 }
 
-void set_cells_to_original_state(cell cells[ROWS][COLUMNS]) {
+void set_cells_to_original_state() {
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLUMNS; j++) {
             cells[i][j].alive = false;
@@ -100,7 +101,7 @@ void set_cells_to_original_state(cell cells[ROWS][COLUMNS]) {
     }
 }
 
-void toggle_cell_state(cell cells[ROWS][COLUMNS], SDL_Point *point) {
+void toggle_cell_state(SDL_Point *point) {
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLUMNS; j++) {
             if (SDL_PointInRect(point, &cells[i][j].rect)) {
@@ -110,7 +111,7 @@ void toggle_cell_state(cell cells[ROWS][COLUMNS], SDL_Point *point) {
     }
 }
 
-void input(cell cells[ROWS][COLUMNS]) {
+void input() {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -122,7 +123,7 @@ void input(cell cells[ROWS][COLUMNS]) {
                 if (game_state == SETUP) {
                     if (event.button.button == SDL_BUTTON_LEFT) {
                         SDL_Point point = { event.button.x, event.button.y };
-                        toggle_cell_state(cells, &point);
+                        toggle_cell_state(&point);
                     }
                 }
                 break;
@@ -139,7 +140,7 @@ void input(cell cells[ROWS][COLUMNS]) {
                         break;
                     case SDLK_r:
                         if (game_state == SETUP)
-                            set_cells_to_original_state(cells);
+                            set_cells_to_original_state();
                         break;
                 }
                 break;
@@ -157,7 +158,7 @@ void wait_till_ready(void) {
     last_render = SDL_GetTicks();
 }
 
-void compute_next_generation(cell cells[ROWS][COLUMNS]) {
+void compute_next_generation() {
     static int ticks = 0;
     if (ticks == 0) {
         cell tmp[ROWS][COLUMNS];
@@ -188,7 +189,7 @@ void compute_next_generation(cell cells[ROWS][COLUMNS]) {
     ticks = (ticks + 1) % 5;
 }
 
-void draw_cells(cell cells[ROWS][COLUMNS], SDL_Renderer *renderer, color *colors) {
+void draw_cells(SDL_Renderer *renderer, color *colors) {
     if (game_state == SETUP)
         SDL_SetRenderDrawColor(renderer, colors[1].r, colors[1].g, colors[1].b, SDL_ALPHA_OPAQUE);
     if (game_state == RUNNING)
@@ -205,11 +206,11 @@ void draw_cells(cell cells[ROWS][COLUMNS], SDL_Renderer *renderer, color *colors
     }
 }
 
-void update(cell cells[ROWS][COLUMNS], SDL_Renderer *renderer) {
+void update(SDL_Renderer *renderer) {
     wait_till_ready();
 
     if (game_state == RUNNING) {
-        compute_next_generation(cells);
+        compute_next_generation();
     }
 
     color colors[] = {
@@ -221,7 +222,7 @@ void update(cell cells[ROWS][COLUMNS], SDL_Renderer *renderer) {
     SDL_SetRenderDrawColor(renderer, colors[0].r, colors[0].g, colors[0].b, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(renderer);
 
-    draw_cells(cells, renderer, colors);
+    draw_cells(renderer, colors);
 
     SDL_RenderPresent(renderer);
 }
